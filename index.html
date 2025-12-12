@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KT84 Animation Studio</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Apple-style Font Stack */
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #fbfbfd; /* Apple Background */
+            color: #1d1d1f; 
+            -webkit-font-smoothing: antialiased;
+        }
+        
+        .pixel-grid {
+            display: grid;
+            grid-template-columns: repeat(70, 1fr);
+            gap: 1px;
+            background-color: #000;
+            padding: 8px;
+            border-radius: 8px;
+            width: 100%;
+            aspect-ratio: 70/7;
+            box-shadow: inset 0 0 0 1px #333;
+        }
+        .pixel {
+            width: 100%;
+            height: 100%;
+            background-color: #111;
+            border-radius: 1px;
+            transition: background-color 0.05s;
+        }
+
+        /* Apple UI Components */
+        .apple-card {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 18px;
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
+        }
+        
+        .apple-input {
+            background: #f5f5f7;
+            border: 1px solid transparent;
+            border-radius: 12px;
+            padding: 12px 16px;
+            font-size: 15px;
+            transition: all 0.2s ease;
+            color: #1d1d1f;
+            width: 100%;
+            outline: none;
+        }
+        .apple-input:focus {
+            background: #fff;
+            box-shadow: 0 0 0 4px rgba(0, 125, 250, 0.1);
+        }
+
+        .apple-btn {
+            background: #1d1d1f;
+            color: #fff;
+            border-radius: 999px;
+            font-weight: 500;
+            transition: transform 0.1s ease, background 0.2s ease;
+        }
+        .apple-btn:hover { background: #333; }
+        .apple-btn:active { transform: scale(0.98); }
+        
+        .apple-btn-secondary {
+            background: #e8e8ed;
+            color: #1d1d1f;
+        }
+        .apple-btn-secondary:hover { background: #d2d2d7; }
+
+        /* Custom Range Slider */
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 4px; /* 轨道高度 */
+            background: #cbd5e1; /* 轨道颜色 (明显的灰色) */
+            border-radius: 2px;
+            outline: none;
+            margin: 10px 0; /* 给滑块留出空间 */
+        }
+
+        /* 滑块按钮 */
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #ffffff;
+            border: 1px solid rgba(0,0,0,0.1);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+            cursor: pointer;
+            margin-top: -8px; /* (轨道高度4 - 滑块高度20) / 2 = -8 */
+            position: relative;
+            z-index: 2;
+        }
+
+        /* 移除伪元素背景，避免冲突 */
+        input[type="range"]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: transparent; 
+            border: none;
+        }
+
+        /* Color Picker Reset */
+        input[type="color"] {
+            -webkit-appearance: none;
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            background: none;
+            padding: 0;
+            overflow: hidden;
+        }
+        input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+        input[type="color"]::-webkit-color-swatch { border: none; border-radius: 50%; border: 1px solid rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+<div id="app" class="flex-grow max-w-6xl mx-auto w-full p-6 md:p-12">
+    
+    <!-- Header -->
+    <header class="flex justify-between items-end mb-12 px-2">
+        <div>
+            <h1 class="text-4xl font-bold tracking-tight text-black mb-1">KT84 动画工坊</h1>
+            <p class="text-lg text-gray-500 font-medium">LED 矩阵像素屏设计工具</p>
+        </div>
+        <div class="hidden md:block">
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600 tracking-wide uppercase">
+                预览区域
+            </span>
+        </div>
+    </header>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        <!-- Controls -->
+        <div class="lg:col-span-4 space-y-6">
+            <div class="apple-card p-6 md:p-8 h-full">
+                <div class="flex items-center justify-between mb-8">
+                    <h2 class="text-xl font-semibold">参数设置</h2>
+                </div>
+                
+                <div class="space-y-8">
+                    <!-- Text Input -->
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">显示内容 (空格分隔)</label>
+                        <input type="text" v-model="inputText" @input="debouncedGenerate" class="apple-input" placeholder="输入单词...">
+                    </div>
+
+                    <!-- Colors -->
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">渐变风格</label>
+                        <div class="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100">
+                            <div class="flex flex-col items-center gap-1">
+                                <input type="color" v-model="config.colorTop" @input="debouncedGenerate">
+                                <span class="text-[10px] text-gray-400 font-medium uppercase">顶部颜色</span>
+                            </div>
+                            <div class="flex-grow h-px bg-gray-200 mx-4 relative">
+                                <div class="absolute inset-0 bg-gradient-to-r from-transparent via-gray-300 to-transparent opacity-50"></div>
+                            </div>
+                            <div class="flex flex-col items-center gap-1">
+                                <input type="color" v-model="config.colorBottom" @input="debouncedGenerate">
+                                <span class="text-[10px] text-gray-400 font-medium uppercase">底部颜色</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">扫描光效</label>
+                         <div class="flex items-center gap-4 p-3 bg-gray-50 rounded-xl border border-gray-100">
+                            <input type="color" v-model="config.scanColor" @input="debouncedGenerate">
+                            <span class="text-sm text-gray-600 font-medium">高亮扫描线颜色</span>
+                        </div>
+                    </div>
+
+                    <!-- Slider -->
+                    <div>
+                        <div class="flex justify-between mb-2">
+                            <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">背景氛围</label>
+                            <span class="text-xs font-mono text-gray-400">{{config.bgIntensity}}%</span>
+                        </div>
+                        <input type="range" v-model.number="config.bgIntensity" min="0" max="100" @input="debouncedGenerate">
+                    </div>
+                </div>
+
+                <!-- Action Button -->
+                <div class="mt-10 pt-6 border-t border-gray-100">
+                    <button @click="generateAndDownload" class="apple-btn w-full py-3.5 text-sm flex items-center justify-center gap-2 group shadow-lg shadow-gray-200">
+                        <span>导出配置文件</span>
+                        <svg class="w-4 h-4 opacity-70 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                    </button>
+                    <div class="mt-3 text-center text-xs text-gray-400 font-medium">
+                        当前帧数: {{ frames.length }} / 312 (上限)
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Preview -->
+        <div class="lg:col-span-8 flex flex-col gap-6">
+            <div class="apple-card p-6 md:p-10 flex flex-col justify-center min-h-[500px] relative overflow-hidden">
+                <!-- Playback Controls -->
+                <div class="absolute top-6 right-6 flex gap-2 z-10">
+                    <button @click="currentFrameIndex = 0" class="w-10 h-10 rounded-full bg-white shadow-sm border border-gray-100 flex items-center justify-center hover:bg-gray-50 transition-colors text-gray-600" title="重置">
+                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M11 5L4 12L11 19V5Z"/><path d="M20 5L13 12L20 19V5Z"/></svg>
+                    </button>
+                    <button @click="togglePlay" class="w-10 h-10 rounded-full bg-white shadow-sm border border-gray-100 flex items-center justify-center hover:bg-gray-50 transition-colors text-gray-600" title="播放/暂停">
+                        <svg v-if="!isPlaying" class="w-4 h-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                        <svg v-else class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                    </button>
+                </div>
+
+                <div class="text-center mb-8">
+                    <h2 class="text-2xl font-semibold tracking-tight">实时预览</h2>
+                    <p class="text-gray-400 mt-1">7x70 像素物理模拟</p>
+                </div>
+
+                <!-- Device Simulation -->
+                <div class="bg-gray-900 rounded-2xl p-2 shadow-2xl mx-auto w-full max-w-[840px] transform transition-transform hover:scale-[1.01] duration-500">
+                    <div class="bg-black rounded-xl p-3 border border-gray-800 shadow-inner relative overflow-hidden">
+                        <!-- Glass Reflection -->
+                        <div class="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white to-transparent opacity-[0.03] pointer-events-none z-10"></div>
+                        
+                        <div class="pixel-grid relative z-0">
+                            <div v-for="(color, idx) in currentFrameDisplay" 
+                                 :key="idx" 
+                                 class="pixel" 
+                                 :style="{ 
+                                    backgroundColor: color, 
+                                    boxShadow: color !== '#000000' && color !== '#00000000' ? `0 0 10px ${color}80` : 'none',
+                                    opacity: color === '#000000' ? 0.15 : 1 
+                                 }">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Info Bar -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="apple-card p-5 flex items-center gap-4">
+                    <div class="w-10 h-10 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    </div>
+                    <div>
+                        <div class="text-sm font-semibold">智能帧率</div>
+                        <div class="text-xs text-gray-500">自动压缩至 312 帧内</div>
+                    </div>
+                </div>
+                <div class="apple-card p-5 flex items-center gap-4">
+                    <div class="w-10 h-10 rounded-full bg-purple-50 text-purple-500 flex items-center justify-center">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path></svg>
+                    </div>
+                    <div>
+                        <div class="text-sm font-semibold">真彩显示</div>
+                        <div class="text-xs text-gray-500">24位 RGB 色彩输出</div>
+                    </div>
+                </div>
+                 <div class="apple-card p-5 flex items-center gap-4">
+                    <div class="w-10 h-10 rounded-full bg-teal-50 text-teal-500 flex items-center justify-center">
+                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    </div>
+                    <div>
+                        <div class="text-sm font-semibold">JSON 导出</div>
+                        <div class="text-xs text-gray-500">即时生成配置文件</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Footer -->
+<footer class="mt-auto py-10 text-center">
+    <a href="https://github.com/ChiMings/KT84" target="_blank" class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-gray-200 shadow-sm text-gray-600 hover:text-black hover:shadow-md transition-all duration-300">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+            <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
+        </svg>
+        <span class="font-medium text-sm">项目地址 chimings</span>
+    </a>
+</footer>
+
+<script>
+    const { createApp, ref, computed, onMounted, watch } = Vue;
+
+    // 5x7 Font Data
+    const FONT = {
+        'A': [0x70, 0x88, 0x88, 0xF8, 0x88, 0x88, 0x88],
+        'B': [0xF0, 0x88, 0x88, 0xF0, 0x88, 0x88, 0xF0],
+        'C': [0x70, 0x88, 0x80, 0x80, 0x80, 0x88, 0x70],
+        'D': [0xF0, 0x88, 0x88, 0x88, 0x88, 0x88, 0xF0],
+        'E': [0xF8, 0x80, 0x80, 0xF0, 0x80, 0x80, 0xF8],
+        'F': [0xF8, 0x80, 0x80, 0xF0, 0x80, 0x80, 0x80],
+        'G': [0x70, 0x88, 0x80, 0xB8, 0x88, 0x88, 0x70],
+        'H': [0x88, 0x88, 0x88, 0xF8, 0x88, 0x88, 0x88],
+        'I': [0xF8, 0x20, 0x20, 0x20, 0x20, 0x20, 0xF8],
+        'J': [0x08, 0x08, 0x08, 0x08, 0x08, 0x88, 0x70],
+        'K': [0x88, 0x90, 0xA0, 0xC0, 0xA0, 0x90, 0x88],
+        'L': [0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0xF8],
+        'M': [0x88, 0xD8, 0xA8, 0xA8, 0x88, 0x88, 0x88],
+        'N': [0x88, 0xC8, 0xA8, 0x98, 0x88, 0x88, 0x88],
+        'O': [0x70, 0x88, 0x88, 0x88, 0x88, 0x88, 0x70],
+        'P': [0xF0, 0x88, 0x88, 0xF0, 0x80, 0x80, 0x80],
+        'Q': [0x70, 0x88, 0x88, 0x88, 0xA8, 0x90, 0x68],
+        'R': [0xF0, 0x88, 0x88, 0xF0, 0xA0, 0x90, 0x88],
+        'S': [0x70, 0x88, 0x80, 0x70, 0x08, 0x88, 0x70],
+        'T': [0xF8, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20],
+        'U': [0x88, 0x88, 0x88, 0x88, 0x88, 0x88, 0x70],
+        'V': [0x88, 0x88, 0x88, 0x88, 0x88, 0x50, 0x20],
+        'W': [0x88, 0x88, 0x88, 0xA8, 0xA8, 0xD8, 0x88],
+        'X': [0x88, 0x88, 0x50, 0x20, 0x50, 0x88, 0x88],
+        'Y': [0x88, 0x88, 0x50, 0x20, 0x20, 0x20, 0x20],
+        'Z': [0xF8, 0x08, 0x10, 0x20, 0x40, 0x80, 0xF8],
+        ' ': [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
+        '-': [0x00, 0x00, 0x00, 0xF8, 0x00, 0x00, 0x00],
+        '.': [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40],
+        '0': [0x70, 0x88, 0x98, 0xA8, 0xC8, 0x88, 0x70],
+        '1': [0x20, 0x60, 0x20, 0x20, 0x20, 0x20, 0x70],
+        '2': [0x70, 0x88, 0x08, 0x10, 0x40, 0x80, 0xF8],
+        '3': [0xF8, 0x08, 0x10, 0x08, 0x08, 0x88, 0x70],
+        '4': [0x10, 0x30, 0x50, 0x90, 0xF8, 0x10, 0x10],
+        '5': [0xF8, 0x80, 0xF0, 0x08, 0x08, 0x88, 0x70],
+        '6': [0x30, 0x40, 0x80, 0xF0, 0x88, 0x88, 0x70],
+        '7': [0xF8, 0x08, 0x08, 0x10, 0x20, 0x20, 0x20],
+        '8': [0x70, 0x88, 0x88, 0x70, 0x88, 0x88, 0x70],
+        '9': [0x70, 0x88, 0x88, 0x78, 0x08, 0x08, 0x30],
+        '!': [0x20, 0x20, 0x20, 0x20, 0x20, 0x00, 0x20],
+    };
+
+    createApp({
+        setup() {
+            const inputText = ref("HELLO WORLD");
+            const config = ref({
+                colorTop: "#3b82f6",    // Apple Blue
+                colorBottom: "#8000FF", 
+                scanColor: "#FF00FF",
+                bgIntensity: 10
+            });
+            const frames = ref([]);
+            const currentFrameIndex = ref(0);
+            const isPlaying = ref(true);
+            let debounceTimer = null;
+
+            // Helper: Hex to RGB
+            const hexToRgb = (hex) => {
+                const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                return result ? [
+                    parseInt(result[1], 16),
+                    parseInt(result[2], 16),
+                    parseInt(result[3], 16)
+                ] : [0, 0, 0];
+            };
+
+            // Helper: RGB to Hex
+            const rgbToHex = (r, g, b) => {
+                return "#" + [r, g, b].map(x => {
+                    const hex = Math.min(255, Math.max(0, Math.round(x))).toString(16);
+                    return hex.length === 1 ? "0" + hex : hex;
+                }).join("");
+            };
+
+            // Helper: Interpolate Colors
+            const interpolateColor = (c1, c2, factor) => {
+                return [
+                    c1[0] + (c2[0] - c1[0]) * factor,
+                    c1[1] + (c2[1] - c1[1]) * factor,
+                    c1[2] + (c2[2] - c1[2]) * factor
+                ];
+            };
+
+            // Font Pixel Checker
+            const getPixel = (char, r, c) => {
+                char = char.toUpperCase();
+                if (!FONT[char]) return 0;
+                const rowData = FONT[char][r];
+                const mask = 0x80 >> c;
+                return (rowData & mask) ? 1 : 0;
+            };
+
+            // Generate Word Grid
+            const makeWordGrid = (word) => {
+                const width = 70;
+                const height = 7;
+                const wordWidth = word.length * 6;
+                const startCol = Math.floor((width - wordWidth) / 2);
+                const grid = Array(height).fill().map(() => Array(width).fill(0));
+                
+                for (let i = 0; i < word.length; i++) {
+                    const char = word[i];
+                    const baseCol = startCol + i * 6;
+                    for (let r = 0; r < 7; r++) {
+                        for (let c = 0; c < 5; c++) {
+                            if (getPixel(char, r, c)) {
+                                if (baseCol + c >= 0 && baseCol + c < width) {
+                                    grid[r][baseCol + c] = 1;
+                                }
+                            }
+                        }
+                    }
+                }
+                return grid;
+            };
+
+            // MAIN GENERATION LOGIC
+            const generateFrames = () => {
+                const textList = inputText.value.split(" ").filter(t => t);
+                if (textList.length === 0) return;
+
+                const sequence = ["", ...textList, ""];
+                const WIDTH = 70;
+                const HEIGHT = 7;
+                
+                // Colors
+                const cTop = hexToRgb(config.value.colorTop);
+                const cBot = hexToRgb(config.value.colorBottom);
+                const cScan = hexToRgb(config.value.scanColor);
+                
+                // Pre-calculate gradient
+                const gradient = [];
+                for(let r=0; r<HEIGHT; r++) {
+                    gradient.push(interpolateColor(cTop, cBot, r / (HEIGHT-1)));
+                }
+
+                const newFrames = [];
+                
+                // Adaptive Timing
+                const MAX_TOTAL_FRAMES = 312;
+                const END_STAY = 10;
+                let step = 0.25;
+                let stay = 40;
+                
+                // Calc budget
+                let scanFrames = Math.floor(11.5 / step) + 1;
+                let estimated = textList.length * (scanFrames + stay) + (scanFrames + END_STAY);
+                
+                // Optimize
+                while (estimated > MAX_TOTAL_FRAMES && stay > 20) {
+                    stay -= 2;
+                    estimated = textList.length * (scanFrames + stay) + (scanFrames + END_STAY);
+                }
+                while (estimated > MAX_TOTAL_FRAMES && step < 0.5) {
+                    step += 0.05;
+                    scanFrames = Math.floor(11.5 / step) + 1;
+                    estimated = textList.length * (scanFrames + stay) + (scanFrames + END_STAY);
+                }
+
+                let prevGrid = makeWordGrid("");
+
+                for (let i = 1; i < sequence.length; i++) {
+                    const currentWord = sequence[i];
+                    const nextGrid = makeWordGrid(currentWord);
+                    
+                    // Phase A: Scan
+                    let scanY = -2.0;
+                    while (scanY < HEIGHT + 2.5) {
+                        const flatPixels = [];
+                        const noiseRow = Array(WIDTH).fill(0).map(() => Math.random());
+                        
+                        for (let r = 0; r < HEIGHT; r++) {
+                            const dist = scanY - r;
+                            const lineBrightness = Math.exp(-(dist * dist) / 0.5);
+                            const mask = 1.0 / (1.0 + Math.exp(-(dist * 8.0)));
+                            
+                            for (let c = 0; c < WIDTH; c++) {
+                                let bgIntensity = 0;
+                                if (Math.random() < config.value.bgIntensity / 1000) bgIntensity = 20;
+                                
+                                let rgbPrev = [bgIntensity, bgIntensity, bgIntensity];
+                                if (prevGrid[r][c]) rgbPrev = gradient[r];
+                                
+                                let rgbNext = [bgIntensity, bgIntensity, bgIntensity];
+                                if (nextGrid[r][c]) rgbNext = gradient[r];
+                                
+                                let rBase = rgbPrev[0] * (1.0 - mask) + rgbNext[0] * mask;
+                                let gBase = rgbPrev[1] * (1.0 - mask) + rgbNext[1] * mask;
+                                let bBase = rgbPrev[2] * (1.0 - mask) + rgbNext[2] * mask;
+                                
+                                let glitch = 0;
+                                if (Math.abs(dist) < 1.5 && noiseRow[c] > 0.7) {
+                                    glitch = 150 * noiseRow[c] * Math.exp(-(dist*dist));
+                                }
+
+                                let rFinal = rBase + cScan[0] * lineBrightness;
+                                let gFinal = gBase + cScan[1] * lineBrightness + glitch;
+                                let bFinal = bBase + cScan[2] * lineBrightness + glitch;
+                                
+                                flatPixels.push(rgbToHex(rFinal, gFinal, bFinal));
+                            }
+                        }
+                        newFrames.push({ frameIndex: newFrames.length, frameRGB: flatPixels });
+                        scanY += step;
+                    }
+                    
+                    // Phase B: Stay
+                    const currentStay = (currentWord !== "") ? stay : END_STAY;
+                    for (let f = 0; f < currentStay; f++) {
+                        const flatPixels = [];
+                        for (let r = 0; r < HEIGHT; r++) {
+                            for (let c = 0; c < WIDTH; c++) {
+                                let pulse = 1.0;
+                                if (nextGrid[r][c]) {
+                                    if (Math.random() < 0.01) pulse = 0.7;
+                                    const col = gradient[r];
+                                    flatPixels.push(rgbToHex(col[0]*pulse, col[1]*pulse, col[2]*pulse));
+                                } else {
+                                    let bg = 0;
+                                    if (Math.random() < 0.001) bg = 30;
+                                    flatPixels.push(rgbToHex(0, bg, bg));
+                                }
+                            }
+                        }
+                        newFrames.push({ frameIndex: newFrames.length, frameRGB: flatPixels });
+                    }
+                    
+                    prevGrid = nextGrid;
+                }
+                
+                frames.value = newFrames;
+            };
+
+            const debouncedGenerate = () => {
+                if (debounceTimer) clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(generateFrames, 200);
+            };
+
+            const generateAndDownload = () => {
+                generateFrames();
+                const outputData = {
+                    "MACHENIKE": "KT 68 LED",
+                    "led effects": [{
+                        "brightness": 255,
+                        "speed": 100,
+                        "frames": frames.value
+                    }]
+                };
+                
+                const blob = new Blob([JSON.stringify(outputData, null, "\t")], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "custom_text.json";
+                a.click();
+            };
+
+            const currentFrameDisplay = computed(() => {
+                if (frames.value.length === 0) return Array(70*7).fill("#000000");
+                const idx = currentFrameIndex.value % frames.value.length;
+                return frames.value[idx].frameRGB;
+            });
+            
+            const animate = () => {
+                if (isPlaying.value && frames.value.length > 0) {
+                    currentFrameIndex.value = (currentFrameIndex.value + 1) % frames.value.length;
+                }
+                setTimeout(() => requestAnimationFrame(animate), 33);
+            };
+
+            const togglePlay = () => isPlaying.value = !isPlaying.value;
+
+            onMounted(() => {
+                generateFrames();
+                requestAnimationFrame(animate);
+            });
+
+            return {
+                inputText, config, frames, currentFrameIndex, currentFrameDisplay,
+                debouncedGenerate, generateAndDownload, isPlaying, togglePlay
+            };
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>
